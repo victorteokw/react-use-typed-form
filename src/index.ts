@@ -5,7 +5,7 @@ type EleType<ArrType> = ArrType extends readonly (infer ElementType)[]
     ? ElementType
     : never;
 
-type Validator<T> = (value: T) => string | undefined | boolean | null | Promise<string | undefined | boolean | null>
+export type Validator<T> = (value: T) => string | undefined | boolean | null | Promise<string | undefined | boolean | null>
 
 function useTypedForm<T>(initial?: Partial<T>): {
     set: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => void,
@@ -153,10 +153,12 @@ function useTypedForm<T>(initial?: Partial<T>): {
                         setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
                         resolve(false)
                     } else {
+                        setError(keyPath as any, undefined)
                         resolve(true)
                     }
                 })
             } else {
+                setError(keyPath as any, undefined)
                 resolve(true)
             }
         })
