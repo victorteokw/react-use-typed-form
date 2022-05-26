@@ -21,6 +21,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
     validate: () => Promise<boolean>,
     setValidator: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, validator: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>) => void,
     validatePath: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => void,
+    setAndValidate: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => void,
     bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
         valueToString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
         stringToValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
@@ -145,6 +146,13 @@ function useTypedForm<T>(initial?: Partial<T>): {
     const validatePath: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => void = (keyPath) => {
         if (validators[keyPath]) {
             _validateWithValidator(keyPath, get(keyPath as any), validators[keyPath]).then(() => {})
+        }
+    }
+
+    const setAndValidate: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => void = (keyPath, value) => {
+        set(keyPath as any, value as any)
+        if (validators[keyPath]) {
+            _validateWithValidator(keyPath, value, validators[keyPath]).then(() => {})
         }
     }
 
@@ -302,7 +310,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
 
     return {
         get, set, push, pop,
-        reset, getState, setError, setErrors, getError, getErrors, validate, setValidator, validatePath,
+        reset, getState, setError, setErrors, getError, getErrors, validate, setValidator, validatePath, setAndValidate,
         bindInput, bindCheckbox, bindRadio, bindCheckboxGroup, bindSelect, bindOption,
         bindErrorMessage,
     } as any
