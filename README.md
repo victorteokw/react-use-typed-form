@@ -74,5 +74,3 @@ Bind a single value to a option element. It's selected when the select element's
 
 ### `bindErrorMessage(keyPath)`
 Bind to any elements usually div. When there is an error at keyPath, it's visible and it's children is the error message string.
-
-
