@@ -22,7 +22,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
     bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
         valueToString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
         stringToValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
-        validate?: Validator<string>,
+        validate?: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>,
         validateOnTyping?: boolean,
     }) => {
         value: string,
@@ -32,7 +32,9 @@ function useTypedForm<T>(initial?: Partial<T>): {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
-    bindRadio: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => {
+    bindRadio: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>, options?: {
+        validate?: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>
+    }) => {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
@@ -184,11 +186,11 @@ function useTypedForm<T>(initial?: Partial<T>): {
             onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                 let newValue = (options?.stringToValue ?? ((v) => v as unknown as any))(e.target.value)
                 set(keyPath as any, newValue)
-                if (options?.validateOnTyping && options?.validate) {
-                    _validateWithValidator(keyPath, newValue, options.validate).then(() => {})
+                if (options?.validateOnTyping && validators[keyPath]) {
+                    _validateWithValidator(keyPath, newValue, validators[keyPath]).then(() => {})
                 } else {
-                    if (getError(keyPath as any) && options?.validate) {
-                        _validateWithValidator(keyPath, newValue, options.validate).then(() => {})
+                    if (getError(keyPath as any) && validators[keyPath]) {
+                        _validateWithValidator(keyPath, newValue, validators[keyPath]).then(() => {})
                     }
                 }
             }
@@ -207,14 +209,22 @@ function useTypedForm<T>(initial?: Partial<T>): {
         }
     }
 
-    const bindRadio = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>): {
+    const bindRadio = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>, options?: {
+        validate?: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>
+    }): {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     } => {
+        if (options?.validate) {
+            validators[keyPath] = options.validate
+        }
         return {
             checked: get(keyPath as any) === value as any,
             onChange: (e: ChangeEvent<HTMLInputElement>) => {
                 set(keyPath as any, value as any)
+                if (getError(keyPath as any) && validators[keyPath]) {
+                    _validateWithValidator(keyPath, value, validators[keyPath]).then(() => {})
+                }
             }
         }
     }
