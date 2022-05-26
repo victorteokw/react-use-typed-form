@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from "react"
+import { ChangeEvent, ReactNode, useState } from "react"
 import { O, F, S } from "ts-toolbelt"
 
 type EleType<ArrType> = ArrType extends readonly (infer ElementType)[]
@@ -20,8 +20,8 @@ function useTypedForm<T>(initial?: Partial<T>): {
     getErrors: () => {[key: string]: string | undefined},
     validate: () => Promise<boolean>,
     bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
-        toString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
-        toValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+        valueToString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
+        stringToValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
         validate?: Validator<string>,
         validateOnTyping?: boolean,
     }) => {
@@ -47,6 +47,10 @@ function useTypedForm<T>(initial?: Partial<T>): {
     bindOption: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => {
         value: O.Path<Partial<T>, S.Split<KP, '.'>>,
     },
+    bindErrorMessage: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => {
+        hidden: boolean,
+        children: ReactNode,
+    }
 } {
 
     let [state, setState] = useState<Partial<T>>(initial ?? {})
@@ -54,6 +58,9 @@ function useTypedForm<T>(initial?: Partial<T>): {
     let validators: {[key: string]: Validator<any>} = {}
 
     const _get = (keyPath: string, state: any): any => {
+        if (keyPath === undefined) {
+            return undefined
+        }
         let retval = state
         if (keyPath === '') {
             return retval
@@ -117,43 +124,47 @@ function useTypedForm<T>(initial?: Partial<T>): {
     }
 
     const validate = async (): Promise<boolean> => {
+        let final = true
         for (let keyPath of Object.keys(validators)) {
             let validator = validators[keyPath]
-            await validator(get(keyPath as any))
+            let result = await _validateWithValidator(keyPath, get(keyPath as any), validator)
+            if (result == false) {
+                final = false
+            }
         }
-        return Object.keys(errors).length === 0
+        return final
     }
 
-    const _validateWithValidator = <T>(keyPath: string, value: T, validator: Validator<T>): Promise<void> => {
+    const _validateWithValidator = <T>(keyPath: string, value: T, validator: Validator<T>): Promise<boolean> => {
         return new Promise((resolve, _reject) => {
             let result = validator(value);
             if (typeof result === "string") {
                 setError(keyPath as any, result)
-                resolve()
+                resolve(false)
             } else if (result === false) {
                 setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
-                resolve()
-            } else if ((result as any).then) {
+                resolve(false)
+            } else if (result !== null && typeof result === 'object' && typeof result.then === 'function') {
                 (result as any).then((result: any) => {
                     if (typeof result === "string") {
                         setError(keyPath as any, result)
-                        resolve()
+                        resolve(false)
                     } else if (result === false) {
                         setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
-                        resolve()
+                        resolve(false)
                     } else {
-                        resolve()
+                        resolve(true)
                     }
                 })
             } else {
-                resolve()
+                resolve(true)
             }
         })
     }
 
     const bindInput = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
-        toString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
-        toValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+        valueToString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
+        stringToValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
         validate?: Validator<string>,
         validateOnTyping?: boolean,
     }): {
@@ -163,10 +174,13 @@ function useTypedForm<T>(initial?: Partial<T>): {
         if (options?.validate) {
             validators[keyPath] = options.validate
         }
+        if (get(keyPath as any) === undefined) {
+            set(keyPath as any, (options?.valueToString ?? ((v) => (v ? String(v) : '')))(undefined as any) as any)
+        }
         return {
-            value: (options?.toString ?? ((v) => (v ? String(v) : '')))(get(keyPath as any) as any),
+            value: (options?.valueToString ?? ((v) => (v ? String(v) : '')))(get(keyPath as any) as any),
             onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                let newValue = (options?.toValue ?? ((v) => v as unknown as any))(e.target.value)
+                let newValue = (options?.stringToValue ?? ((v) => v as unknown as any))(e.target.value)
                 set(keyPath as any, newValue)
                 if (options?.validateOnTyping && options?.validate) {
                     _validateWithValidator(keyPath, newValue, options.validate).then(() => {})
@@ -250,10 +264,22 @@ function useTypedForm<T>(initial?: Partial<T>): {
         }
     }
 
+    const bindErrorMessage = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>): {
+        hidden: boolean,
+        children: ReactNode,
+    } => {
+        let errorMessage = getError(keyPath as any) as any
+        return {
+            hidden: !errorMessage,
+            children: errorMessage
+        }
+    }
+
     return {
         get, set, push, pop,
         reset, getState, setError, setErrors, getError, getErrors, validate,
-        bindInput, bindCheckbox, bindRadio, bindCheckboxGroup, bindSelect, bindOption
+        bindInput, bindCheckbox, bindRadio, bindCheckboxGroup, bindSelect, bindOption,
+        bindErrorMessage,
     } as any
 }
 
