@@ -117,6 +117,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
             delete newErrors[keyPath]
             setErrors(newErrors)
         } else {
+            console.log("will set errors", errors, keyPath)
             setErrors({ ...errors, [keyPath]: error })
         }
     }
@@ -126,42 +127,43 @@ function useTypedForm<T>(initial?: Partial<T>): {
     }
 
     const validate = async (): Promise<boolean> => {
-        let final = true
+        let final = {}
         for (let keyPath of Object.keys(validators)) {
             let validator = validators[keyPath]
-            let result = await _validateWithValidator(keyPath, get(keyPath as any), validator)
-            if (result == false) {
-                final = false
-            }
+            final = { ...final, ...await _validateWithValidator(keyPath, get(keyPath as any), validator) }
         }
-        return final
+        setErrors(final)
+
+        return Object.keys(final).length === 0
     }
 
-    const _validateWithValidator = <T>(keyPath: string, value: T, validator: Validator<T>): Promise<boolean> => {
+    const _validateWithValidator = <T>(keyPath: string, value: T, validator: Validator<T>): Promise<{[key: string]: string}> => {
         return new Promise((resolve, _reject) => {
             let result = validator(value);
             if (typeof result === "string") {
                 setError(keyPath as any, result)
-                resolve(false)
+                resolve({[keyPath]: result})
             } else if (result === false) {
-                setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
-                resolve(false)
+                let result = `Value at '${keyPath}' is invalid.`
+                setError(keyPath as any, result)
+                resolve({[keyPath]: result})
             } else if (result !== null && typeof result === 'object' && typeof result.then === 'function') {
                 (result as any).then((result: any) => {
                     if (typeof result === "string") {
                         setError(keyPath as any, result)
-                        resolve(false)
+                        resolve({[keyPath]: result})
                     } else if (result === false) {
-                        setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
-                        resolve(false)
+                        let result = `Value at '${keyPath}' is invalid.`
+                        setError(keyPath as any, result)
+                        resolve({[keyPath]: result})
                     } else {
                         setError(keyPath as any, undefined)
-                        resolve(true)
+                        resolve({})
                     }
                 })
             } else {
                 setError(keyPath as any, undefined)
-                resolve(true)
+                resolve({})
             }
         })
     }
