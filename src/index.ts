@@ -31,7 +31,10 @@ function useTypedForm<T>(initial?: Partial<T>): {
         value: string,
         onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
     },
-    bindCheckbox: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, toBool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean, toValue?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>) => {
+    bindCheckbox: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
+        toBool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean,
+        toValue?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+    }) => {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
@@ -220,14 +223,17 @@ function useTypedForm<T>(initial?: Partial<T>): {
         }
     }
 
-    const bindCheckbox = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, to_bool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean, to_value?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>): {
+    const bindCheckbox = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
+        toBool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean,
+        toValue?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+    }): {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     } => {
         return {
-            checked: (to_bool ?? ((v) => !!v))(get(keyPath as any) as any),
+            checked: (options?.toBool ?? ((v) => !!v))(get(keyPath as any) as any),
             onChange: (e: ChangeEvent<HTMLInputElement>) => {
-                set(keyPath as any, (to_value ?? ((v) => v as unknown as any))(e.target.checked))
+                set(keyPath as any, (options?.toValue ?? ((v) => v as unknown as any))(e.target.checked))
             }
         }
     }
