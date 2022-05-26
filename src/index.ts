@@ -5,7 +5,7 @@ type EleType<ArrType> = ArrType extends readonly (infer ElementType)[]
   ? ElementType
   : never;
 
-function useTypedForm<T>(initial: Partial<T>): {
+function useTypedForm<T>(initial?: Partial<T>): {
     set: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => void,
     get: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => O.Path<Partial<T>, S.Split<KP, '.'>>,
     push: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: EleType<O.Path<Partial<T>, S.Split<KP, '.'>>>) => void, // todo: KP array only
@@ -37,7 +37,7 @@ function useTypedForm<T>(initial: Partial<T>): {
     },
 } {
 
-    let [state, setState] = useState<Partial<T>>(initial)
+    let [state, setState] = useState<Partial<T>>(initial ?? {})
 
     const _get = (keyPath: string, state: any): any => {
         let retval = state
