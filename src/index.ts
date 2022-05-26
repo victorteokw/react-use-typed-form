@@ -22,7 +22,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
     bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
         valueToString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
         stringToValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
-        validate?: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>,
+        validate?: Validator<NonNullable<O.Path<Partial<T>, S.Split<KP, '.'>>>>,
         validateOnTyping?: boolean,
     }) => {
         value: string,
@@ -33,7 +33,7 @@ function useTypedForm<T>(initial?: Partial<T>): {
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
     bindRadio: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>, options?: {
-        validate?: Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>
+        validate?: Validator<NonNullable<O.Path<Partial<T>, S.Split<KP, '.'>>>>
     }) => {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
