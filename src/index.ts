@@ -41,7 +41,9 @@ function useTypedForm<T>(initial?: Partial<T>): {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
-    bindCheckboxGroup: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: EleType<O.Path<Partial<T>, S.Split<KP, '.'>>>) => {
+    bindCheckboxGroup: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: EleType<O.Path<Partial<T>, S.Split<KP, '.'>>>, options?: {
+        validate? : Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>
+    }) => {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
@@ -250,10 +252,15 @@ function useTypedForm<T>(initial?: Partial<T>): {
         }
     }
 
-    const bindCheckboxGroup = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: EleType<O.Path<Partial<T>, S.Split<KP, '.'>>>): {
+    const bindCheckboxGroup = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: EleType<O.Path<Partial<T>, S.Split<KP, '.'>>>, options?: {
+        validate? : Validator<O.Path<Partial<T>, S.Split<KP, '.'>>>
+    }): {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     } => {
+        if (options?.validate) {
+            validators[keyPath] = options.validate
+        }
         return {
             checked: !!(get(keyPath as any) as unknown as any)?.includes(value),
             onChange: (e: ChangeEvent<HTMLInputElement>) => {
@@ -262,6 +269,9 @@ function useTypedForm<T>(initial?: Partial<T>): {
                     let newList = [...list]
                     newList.splice(list.indexOf(value), 1)
                     set(keyPath as any, newList as unknown as any)
+                    if (getError(keyPath as any) && validators[keyPath]) {
+                        _validateWithValidator(keyPath, newList, validators[keyPath]).then(() => {})
+                    }
                 } else {
                     let newList: any
                     if (list) {
@@ -271,6 +281,9 @@ function useTypedForm<T>(initial?: Partial<T>): {
                     }
                     newList.push(value)
                     set(keyPath as any, newList as unknown as any)
+                    if (getError(keyPath as any) && validators[keyPath]) {
+                        _validateWithValidator(keyPath, newList, validators[keyPath]).then(() => {})
+                    }
                 }
             }
         }
