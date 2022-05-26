@@ -1,9 +1,11 @@
 import { ChangeEvent, useState } from "react"
-import { O, F, A, S } from "ts-toolbelt"
+import { O, F, S } from "ts-toolbelt"
 
 type EleType<ArrType> = ArrType extends readonly (infer ElementType)[]
-  ? ElementType
-  : never;
+    ? ElementType
+    : never;
+
+type Validator<T> = (value: T) => string | undefined | boolean | null | Promise<string | undefined | boolean | null>
 
 function useTypedForm<T>(initial?: Partial<T>): {
     set: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: O.Path<Partial<T>, S.Split<KP, '.'>>) => void,
@@ -12,11 +14,21 @@ function useTypedForm<T>(initial?: Partial<T>): {
     pop: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => void, // todo: KP array only
     reset: (data: Partial<T>) => void,
     getState: () => Partial<T>,
-    bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, to_string?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string, to_value?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>) => {
+    setError: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, value: string | undefined) => void,
+    setErrors: (errors: {[key: string]: string | undefined}) => void,
+    getError: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>) => string | undefined,
+    getErrors: () => {[key: string]: string | undefined},
+    validate: () => Promise<boolean>,
+    bindInput: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
+        toString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
+        toValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+        validate?: Validator<string>,
+        validateOnTyping?: boolean,
+    }) => {
         value: string,
         onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
     },
-    bindCheckbox: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, to_bool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean, to_value?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>) => {
+    bindCheckbox: <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, toBool?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => boolean, toValue?: (bool: boolean) => O.Path<Partial<T>, S.Split<KP, '.'>>) => {
         checked: boolean,
         onChange: (e: ChangeEvent<HTMLInputElement>) => void,
     },
@@ -38,6 +50,8 @@ function useTypedForm<T>(initial?: Partial<T>): {
 } {
 
     let [state, setState] = useState<Partial<T>>(initial ?? {})
+    let [errors, setErrors] = useState<{[key: string]: string}>({})
+    let validators: {[key: string]: Validator<any>} = {}
 
     const _get = (keyPath: string, state: any): any => {
         let retval = state
@@ -84,14 +98,83 @@ function useTypedForm<T>(initial?: Partial<T>): {
         return state
     }
 
-    const bindInput = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, to_string?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string, to_value?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>): {
+    const getError = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>): string | undefined => {
+        return errors[keyPath]
+    }
+
+    const setError = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, error: string | undefined) => {
+        if (error === undefined) {
+            let newErrors = { ...errors }
+            delete newErrors[keyPath]
+            setErrors(newErrors)
+        } else {
+            setErrors({ ...errors, [keyPath]: error })
+        }
+    }
+
+    const getErrors = (): {[key: string]: string} => {
+        return errors
+    }
+
+    const validate = async (): Promise<boolean> => {
+        for (let keyPath of Object.keys(validators)) {
+            let validator = validators[keyPath]
+            await validator(get(keyPath as any))
+        }
+        return Object.keys(errors).length === 0
+    }
+
+    const _validateWithValidator = <T>(keyPath: string, value: T, validator: Validator<T>): Promise<void> => {
+        return new Promise((resolve, _reject) => {
+            let result = validator(value);
+            if (typeof result === "string") {
+                setError(keyPath as any, result)
+                resolve()
+            } else if (result === false) {
+                setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
+                resolve()
+            } else if ((result as any).then) {
+                (result as any).then((result: any) => {
+                    if (typeof result === "string") {
+                        setError(keyPath as any, result)
+                        resolve()
+                    } else if (result === false) {
+                        setError(keyPath as any, `Value at '${keyPath}' is invalid.`)
+                        resolve()
+                    } else {
+                        resolve()
+                    }
+                })
+            } else {
+                resolve()
+            }
+        })
+    }
+
+    const bindInput = <KP extends string>(keyPath: F.AutoPath<Partial<T>, KP>, options?: {
+        toString?: (value: O.Path<Partial<T>, S.Split<KP, '.'>>) => string,
+        toValue?: (value: string) => O.Path<Partial<T>, S.Split<KP, '.'>>,
+        validate?: Validator<string>,
+        validateOnTyping?: boolean,
+    }): {
         value: string,
         onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
     } => {
+        if (options?.validate) {
+            validators[keyPath] = options.validate
+        }
         return {
-            value: (to_string ?? ((v) => (v ? String(v) : '')))(get(keyPath as any) as any),
+            value: (options?.toString ?? ((v) => (v ? String(v) : '')))(get(keyPath as any) as any),
             onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                set(keyPath as any, (to_value ?? ((v) => v as unknown as any))(e.target.value))
+                let newValue = (options?.toValue ?? ((v) => v as unknown as any))(e.target.value)
+                set(keyPath as any, newValue)
+                if (options?.validateOnTyping && options?.validate) {
+                    _validateWithValidator(keyPath, newValue, options.validate).then(() => {})
+                } else {
+                    if (getError(keyPath as any) && options?.validate) {
+                        _validateWithValidator(keyPath, newValue, options.validate).then(() => {})
+                    }
+                }
             }
         }
     }
@@ -167,7 +250,11 @@ function useTypedForm<T>(initial?: Partial<T>): {
         }
     }
 
-    return { get, set, push, pop, reset, getState, bindInput, bindCheckbox, bindRadio, bindCheckboxGroup, bindSelect, bindOption } as any
+    return {
+        get, set, push, pop,
+        reset, getState, setError, setErrors, getError, getErrors, validate,
+        bindInput, bindCheckbox, bindRadio, bindCheckboxGroup, bindSelect, bindOption
+    } as any
 }
 
 export default useTypedForm
